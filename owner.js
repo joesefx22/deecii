@@ -392,3 +392,153 @@ async function initOwnerPanel() {
 }
 
 document.addEventListener("DOMContentLoaded", initOwnerPanel);
+
+// public/js/owner-dashboard.js (الإضافات)
+
+// ... (تأكد من وجود استيراد apiRequest و showAlert و loadView) ...
+// ... (تأكد من وجود verifyOwnerAccess و loadOwnerBookings و loadOwnerStadiums) ...
+// ... (أضف دالة escapeHtml مساعدة إذا لم تكن موجودة) ...
+
+// ===================================
+// ⚽ إنشاء / تعديل ملعب جديد
+// ===================================
+
+async function handleFieldFormSubmit(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fieldId = form.dataset.fieldId;
+    const isNew = !fieldId;
+
+    const data = {
+        name: form.querySelector('#fieldName').value,
+        location: form.querySelector('#fieldLocation').value,
+        price_per_hour: form.querySelector('#fieldPrice').value,
+        deposit_amount: form.querySelector('#fieldDeposit').value,
+        features: Array.from(form.querySelectorAll('#fieldFeatures input:checked')).map(cb => cb.value)
+        // عند الإنشاء، owner_id هو userId تلقائياً من الـ backend
+    };
+
+    try {
+        let response;
+        if (isNew) {
+            // POST لإنشاء ملعب جديد
+            response = await apiRequest("/api/fields", 'POST', data);
+        } else {
+            // PUT لتعديل ملعب موجود
+            response = await apiRequest(`/api/fields/${fieldId}`, 'PUT', data);
+        }
+        
+        window.showAlert(response.message, 'success');
+        
+        // إغلاق المودال
+        const modal = bootstrap.Modal.getInstance(document.getElementById('fieldModal'));
+        if (modal) modal.hide();
+        
+        // إعادة تحميل قائمة الملاعب
+        loadView('stadiums');
+    } catch (error) {
+        window.showAlert(`فشل في ${isNew ? 'إنشاء' : 'تعديل'} الملعب: ${error.message}`, 'error');
+    }
+}
+
+// دالة لفتح مودال الإضافة/التعديل
+window.openFieldModal = function(field = null) {
+    const modal = new bootstrap.Modal(document.getElementById('fieldModal'));
+    const form = document.getElementById('fieldForm');
+    
+    form.reset();
+    form.dataset.fieldId = '';
+    document.getElementById('fieldModalLabel').textContent = 'إضافة ملعب جديد';
+    
+    if (field) {
+        document.getElementById('fieldModalLabel').textContent = 'تعديل ملعب: ' + escapeHtml(field.name);
+        form.dataset.fieldId = field.field_id;
+        
+        form.querySelector('#fieldName').value = field.name;
+        form.querySelector('#fieldLocation').value = field.location;
+        form.querySelector('#fieldPrice').value = field.price_per_hour;
+        form.querySelector('#fieldDeposit').value = field.deposit_amount;
+        
+        // تحديد الميزات (Features)
+        (field.features || []).forEach(feature => {
+            const checkbox = form.querySelector(`#fieldFeatures input[value="${feature}"]`);
+            if (checkbox) checkbox.checked = true;
+        });
+    }
+
+    form.removeEventListener('submit', handleFieldFormSubmit);
+    form.addEventListener('submit', handleFieldFormSubmit);
+    modal.show();
+}
+
+// ===================================
+// ❌ تعطيل / تفعيل ملعب
+// ===================================
+
+window.toggleFieldStatus = async function(fieldId, fieldName, isActive) {
+    const action = isActive ? 'تعطيل' : 'تفعيل';
+    const endpoint = isActive ? `/api/fields/${fieldId}` : `/api/fields/${fieldId}/activate`;
+    const method = isActive ? 'DELETE' : 'POST';
+
+    if (!confirm(`هل أنت متأكد من ${action} الملعب "${fieldName}"؟`)) return;
+
+    try {
+        const response = await apiRequest(endpoint, method);
+        window.showAlert(response.message, 'success');
+        loadView('stadiums'); // إعادة تحميل قائمة الملاعب
+    } catch (error) {
+        window.showAlert(`فشل في ${action} الملعب: ${error.message}`, 'error');
+    }
+}
+
+// ===================================
+// 🏟️ واجهة الملاعب الخاصة بالمالك
+// ===================================
+
+const ownerViews = {
+    // ... (Views الأخرى مثل dashboard)
+    
+    'stadiums': async () => {
+        const stadiums = await loadOwnerStadiums(); // دالة loadOwnerStadiums يجب أن تكون موجودة
+        document.getElementById('mainContent').innerHTML = `
+            <h2 class="mb-4">🏟️ إدارة الملاعب الخاصة بي</h2>
+            <button class="btn btn-success mb-3" onclick="openFieldModal()">
+                <i class="bi bi-plus-circle me-2"></i> إضافة ملعب جديد
+            </button>
+            <div id="stadiumsList" class="row">
+                ${stadiums.map(s => `
+                    <div class="col-md-6 mb-4">
+                        <div class="card manager-pitch-card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">${escapeHtml(s.name)}</h5>
+                                <p class="card-text small text-muted">${escapeHtml(s.location)}</p>
+                                <hr>
+                                <p><strong>سعر الساعة:</strong> ${s.price_per_hour} ج.م</p>
+                                <p><strong>مبلغ العربون:</strong> ${s.deposit_amount} ج.م</p>
+                                <p><strong>الحالة:</strong> 
+                                    <span class="badge bg-${s.is_active ? 'success' : 'danger'}">${s.is_active ? 'نشط' : 'معطل'}</span>
+                                </p>
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-info me-2" onclick="openFieldModal(${JSON.stringify(s).replace(/"/g, '&quot;')})">
+                                        <i class="bi bi-pencil"></i> تعديل
+                                    </button>
+                                    <button class="btn btn-sm btn-${s.is_active ? 'danger' : 'success'}" 
+                                            onclick="toggleFieldStatus('${s.field_id}', '${escapeHtml(s.name)}', ${s.is_active})">
+                                        <i class="bi bi-${s.is_active ? 'power' : 'check-circle'}"></i> ${s.is_active ? 'تعطيل' : 'تفعيل'}
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary mt-2" onclick="loadView('schedule?fieldId=${s.field_id}')">
+                                        <i class="bi bi-calendar"></i> إدارة الحجوزات
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+                ${stadiums.length === 0 ? '<p class="p-4 text-center">لم تقم بإضافة أي ملاعب بعد. ابدأ الآن!</p>' : ''}
+            </div>
+        `;
+    },
+    // ... (بقية Views)
+};
+
+// ... (تأكد من أن loadView تستخدم ownerViews) ...
