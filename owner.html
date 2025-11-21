@@ -113,6 +113,64 @@
     
     <script type="module" src="./js/api.js"></script>
     <script type="module" src="./js/owner-dashboard.js"></script>
-    
+    <div class="modal fade" id="fieldModal" tabindex="-1" aria-labelledby="fieldModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="fieldModalLabel">إضافة ملعب جديد</h5>
+            </div>
+            <form id="fieldForm">
+                <div class="modal-body">
+                    <input type="hidden" id="fieldId">
+                    
+                    <div class="mb-3">
+                        <label for="fieldName" class="form-label">اسم الملعب (مطلوب)</label>
+                        <input type="text" class="form-control" id="fieldName" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="fieldLocation" class="form-label">الموقع/العنوان (مطلوب)</label>
+                        <input type="text" class="form-control" id="fieldLocation" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="fieldPrice" class="form-label">سعر الساعة (ج.م - مطلوب)</label>
+                            <input type="number" class="form-control" id="fieldPrice" min="0" step="10" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fieldDeposit" class="form-label">مبلغ العربون (ج.م - اختياري)</label>
+                            <input type="number" class="form-control" id="fieldDeposit" min="0" step="10" value="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="fieldFeatures">
+                        <label class="form-label d-block">مميزات الملعب</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="featureArtificial" value="نجيلة صناعية">
+                            <label class="form-check-label" for="featureArtificial">نجيلة صناعية</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="featureNatural" value="نجيلة طبيعية">
+                            <label class="form-check-label" for="featureNatural">نجيلة طبيعية</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="featureLights" value="كشافات ليلية">
+                            <label class="form-check-label" for="featureLights">كشافات ليلية</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="featureSeats" value="مقاعد جماهير">
+                            <label class="form-check-label" for="featureSeats">مقاعد جماهير</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="submit" class="btn btn-primary" id="saveFieldBtn">حفظ وتأكيد</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 </body>
 </html>
