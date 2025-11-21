@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الأدمن الرئيسي - احجزلي</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #1a7f46;
+            --secondary-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --info-color: #3498db;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+        }
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        /* تصميم الشريط الجانبي */
+        .sidebar {
+            width: 250px;
+            background-color: var(--dark-color);
+            color: white;
+            padding: 15px;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+        }
+        .content {
+            margin-right: 250px;
+            padding: 20px;
+        }
+        .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            padding: 10px 15px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+        }
+        .nav-link:hover {
+            color: white;
+            background-color: #34495e;
+        }
+        .nav-link.active {
+            color: white;
+            background-color: var(--primary-color);
+        }
+        .stat-card {
+            border-left: 5px solid;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stat-card.primary { border-color: var(--primary-color); }
+        .stat-card.success { border-color: var(--secondary-color); }
+        .stat-card.warning { border-color: var(--warning-color); }
+        .stat-card.danger { border-color: var(--danger-color); }
+        
+        .table-responsive {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h3 class="text-center mb-4 text-warning">لوحة الأدمن</h3>
+        <p class="text-center small" id="adminName">المشرف العام</p>
+        <hr class="text-white-50">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-view="dashboard">
+                    <i class="bi bi-speedometer2 me-2"></i> الإحصائيات العامة
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-view="stadiums">
+                    <i class="bi bi-building-fill-gear me-2"></i> إدارة الملاعب
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-view="users">
+                    <i class="bi bi-people-fill me-2"></i> إدارة المستخدمين
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-view="pending-managers">
+                    <i class="bi bi-person-check-fill me-2"></i> طلبات الموافقة <span class="badge bg-danger ms-2" id="pendingCount">0</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-view="logs">
+                    <i class="bi bi-file-earmark-code-fill me-2"></i> سجل الأنشطة
+                </a>
+            </li>
+            <li class="nav-item mt-4">
+                <a class="nav-link text-danger" href="#" id="logoutBtn">
+                    <i class="bi bi-box-arrow-right me-2"></i> تسجيل خروج
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="content">
+        <div id="alertMessage" class="alert mt-3" role="alert" style="display: none;"></div>
+
+        <div id="mainContent" class="container-fluid">
+            <div class="text-center p-5"><i class="bi bi-arrow-clockwise spinner-border text-primary"></i> <p class="mt-2">جاري تحميل البيانات...</p></div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="approvalModalLabel">الموافقة على طلب</h5>
+                </div>
+                <div class="modal-body">
+                    <p>هل تريد الموافقة على حساب <strong id="modalUserName"></strong> بدور <strong id="modalUserRole"></strong>؟</p>
+                    <div id="roleSelectDiv" class="mb-3">
+                        <label for="targetRoleSelect" class="form-label">تغيير الدور إلى:</label>
+                        <select id="targetRoleSelect" class="form-select">
+                            <option value="owner">مالك ملعب (Owner)</option>
+                            <option value="employee">موظف (Employee)</option>
+                            <option value="admin">أدمن (Admin)</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="modalUserId">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-success" id="confirmApproveBtn">تأكيد الموافقة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script type="module" src="./js/api.js"></script>
+    <script type="module" src="./js/admin-dashboard.js"></script>
+    
+</body>
+</html>
