@@ -115,3 +115,61 @@ document.addEventListener('DOMContentLoaded', () => {
     
     loadBookingInfo();
 });
+
+// public/js/payment.js (التعديل النهائي)
+import { apiRequest } from './api.js';
+
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        bookingId: params.get('booking_id'),
+        // الرابط الفعلي لـ Paymob الذي تم توليده في Backend
+        paymentUrl: params.get('payment_url') 
+    };
+}
+
+// ... (إزالة دوال عرض البيانات و زر التأكيد - لم تعد ضرورية) ...
+
+async function loadBookingInfo() {
+    const { bookingId, paymentUrl } = getUrlParams();
+    
+    // 1. التحقق من التوجيه
+    if (paymentUrl) {
+        // إذا كان رابط الدفع موجوداً، قم بالتوجيه فوراً
+        document.getElementById('loading').innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-white" role="status"></div>
+                <h2 class="mt-4 text-white">جاري توجيهك لصفحة الدفع الآمنة...</h2>
+            </div>
+        `;
+        window.location.replace(paymentUrl);
+        return;
+    }
+    
+    // 2. معالجة حالة فشل التوجيه (لأسباب أمنية أو تأكيد سابق)
+    if (!bookingId) {
+        window.showAlert('❌ خطأ: لم يتم تحديد تفاصيل الحجز.', 'error');
+        document.getElementById('loading').style.display = 'none';
+        return;
+    }
+
+    // محاولة جلب تفاصيل الحجز للتحقق من حالته
+    try {
+        const details = await apiRequest(`/api/booking/${bookingId}/details`, 'GET');
+        
+        if (details.status === 'booked_confirmed') {
+             window.showAlert('✅ هذا الحجز مؤكد بالفعل. سيتم توجيهك الآن.', 'info');
+        } else {
+             // الحجز غير مؤكد ولا يوجد رابط دفع. قد يكون انتهت صلاحيته.
+             window.showAlert('⚠️ فشل في إتمام عملية الدفع أو انتهت صلاحية الطلب. يرجى محاولة الحجز مرة أخرى.', 'warning');
+        }
+    } catch(e) {
+        window.showAlert('❌ لا يمكن جلب بيانات الحجز.', 'error');
+    }
+    
+    // العودة لصفحة الحجوزات بعد 3 ثوان
+    document.getElementById('loading').style.display = 'none';
+    setTimeout(() => { window.location.href = '/user.html?view=my-bookings'; }, 3000);
+}
+
+// ... (بقية ملف payment.js) ...
