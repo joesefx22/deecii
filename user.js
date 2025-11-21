@@ -244,3 +244,238 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. تحميل الواجهة الافتراضية
     loadView('booking');
 });
+
+// public/js/user.js (تعديل دالة views['booking'])
+
+// ... (تأكد من وجود استيراد apiRequest و دالة loadView) ...
+import { apiRequest } from './api.js';
+
+// حالة متغيرة لإدارة تدفق الحجز (جديدة)
+const bookingState = {
+    selectedField: null,
+    selectedDate: new Date().toISOString().split('T')[0],
+    selectedSlot: null
+};
+
+// دالة مساعدة: تحويل الوقت من (HH:MM) إلى عرض (H:MM ص/م)
+function formatTimeDisplay(time) {
+    const [h, m] = time.split(':');
+    const hour = parseInt(h);
+    const suffix = hour >= 12 && hour !== 24 ? 'م' : 'ص';
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${displayHour}:${m} ${suffix}`;
+}
+
+// =============================================
+// 4. دوال عرض الواجهات الفرعية (Views)
+// =============================================
+
+const views = {
+    
+    // 1. حجز جديد (Booking) - الواجهة التفاعلية الجديدة
+    'booking': async () => {
+        
+        // ---------------------------------
+        // منطق التفاعل والحجز
+        // ---------------------------------
+        async function loadFields() {
+            try {
+                // جلب الملاعب المتاحة
+                const fields = await apiRequest('/api/fields/available', 'GET');
+                
+                const fieldCards = fields.map(f => `
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100 card-field ${f.field_id === bookingState.selectedField?.field_id ? 'border-primary border-3 shadow-lg' : ''}" 
+                             data-field-id="${f.field_id}" data-field-name="${f.name}" data-price="${f.price_per_hour}" data-deposit="${f.deposit_amount}">
+                            <div class="card-body">
+                                <h5 class="card-title">${f.name}</h5>
+                                <p class="card-text text-muted">${f.location || f.area}</p>
+                                <p class="mb-1 fw-bold text-success">السعر: ${f.price_per_hour} ج/س</p>
+                                <p class="small text-warning">عربون: ${f.deposit_amount} ج</p>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                document.getElementById('fieldsContainer').innerHTML = fieldCards;
+                
+                // ربط مستمعين الأحداث لاختيار الملعب
+                document.querySelectorAll('#fieldsContainer .card-field').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        const fieldId = e.currentTarget.getAttribute('data-field-id');
+                        const fieldName = e.currentTarget.getAttribute('data-field-name');
+                        const price = parseFloat(e.currentTarget.getAttribute('data-price'));
+                        const deposit = parseFloat(e.currentTarget.getAttribute('data-deposit'));
+                        
+                        // تحديث حالة الحجز
+                        bookingState.selectedField = { field_id: fieldId, name: fieldName, price, deposit };
+                        bookingState.selectedSlot = null;
+                        renderBookingView(); 
+                    });
+                });
+
+            } catch (error) {
+                document.getElementById('fieldsContainer').innerHTML = `<div class="alert alert-danger">فشل في تحميل الملاعب: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadSlots() {
+            const fieldId = bookingState.selectedField?.field_id;
+            const date = bookingState.selectedDate;
+
+            if (!fieldId || !date) return;
+
+            document.getElementById('slotsContainer').innerHTML = `<div class="text-center w-100 p-3"><i class="bi bi-arrow-clockwise spinner-border text-success"></i> <p class="mt-2">جاري تحميل المواعيد...</p></div>`;
+
+            try {
+                // جلب الساعات المتاحة للملعب والتاريخ
+                const slots = await apiRequest(`/api/fields/slots?fieldId=${fieldId}&date=${date}`, 'GET');
+                
+                let html = slots.map(slot => {
+                    const isSelected = bookingState.selectedSlot?.start_time === slot.start_time;
+                    const slotClass = isSelected ? 'btn-primary' : 'btn-outline-primary';
+                    
+                    return `
+                        <button type="button" class="btn ${slotClass} btn-slot m-1" 
+                                data-start="${slot.start_time}" data-end="${slot.end_time}" data-duration="1">
+                            ${formatTimeDisplay(slot.start_time)} - ${formatTimeDisplay(slot.end_time)}
+                        </button>
+                    `;
+                }).join('');
+                
+                if (slots.length === 0) {
+                     html = `<div class="alert alert-warning">لا توجد ساعات متاحة لهذا اليوم.</div>`;
+                }
+
+                document.getElementById('slotsContainer').innerHTML = html;
+                
+                // ربط مستمعين الأحداث لاختيار الساعة
+                document.querySelectorAll('#slotsContainer .btn-slot').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const start_time = e.currentTarget.getAttribute('data-start');
+                        const end_time = e.currentTarget.getAttribute('data-end');
+                        const duration_hours = parseFloat(e.currentTarget.getAttribute('data-duration'));
+                        
+                        bookingState.selectedSlot = { start_time, end_time, duration_hours };
+                        renderBookingView(); 
+                    });
+                });
+
+            } catch (error) {
+                document.getElementById('slotsContainer').innerHTML = `<div class="alert alert-danger">فشل في تحميل المواعيد: ${error.message}</div>`;
+            }
+        }
+
+        async function handleBookingSubmit() {
+            if (!bookingState.selectedField || !bookingState.selectedSlot) {
+                window.showAlert('يجب اختيار الملعب والموعد أولاً.', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('submitBookingBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> جاري الحجز...`;
+
+            const data = {
+                field_id: bookingState.selectedField.field_id,
+                booking_date: bookingState.selectedDate,
+                start_time: bookingState.selectedSlot.start_time,
+                end_time: bookingState.selectedSlot.end_time,
+                duration_hours: bookingState.selectedSlot.duration_hours 
+            };
+            
+            try {
+                const result = await apiRequest('/api/booking/create', 'POST', data);
+
+                if (result.deposit_required) {
+                    window.showAlert('✅ تم تسجيل طلبك! سيتم توجيهك لصفحة الدفع لدفع العربون.', 'success');
+                    // التوجيه لصفحة الدفع (payment.html)
+                    window.location.href = result.payment_url; 
+                } else {
+                    window.showAlert(result.message, 'success');
+                    // مسح الحالة والتحويل لصفحة حجوزاتي
+                    bookingState.selectedField = null;
+                    bookingState.selectedSlot = null;
+                    loadView('my-bookings'); 
+                }
+
+            } catch (error) {
+                window.showAlert(error.message || 'فشل الحجز. قد يكون الموعد غير متاح الآن.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = bookingState.selectedField.deposit > 0 ? 'انتقل للدفع ودفع العربون' : 'أكد الحجز';
+            }
+        }
+        
+        function renderBookingView() {
+            const mainContent = document.getElementById('mainContent');
+            const field = bookingState.selectedField;
+            const slot = bookingState.selectedSlot;
+            
+            // تهيئة الحاوية الداخلية
+            mainContent.querySelector('.container-fluid').innerHTML = `
+                <h2 class="mb-4">🏟️ حجز ملعب كرة قدم</h2>
+                
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label for="bookingDate" class="form-label">اختر تاريخ الحجز</label>
+                        <input type="date" class="form-control" id="bookingDate" value="${bookingState.selectedDate}" min="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                </div>
+                
+                <h4 class="mt-4">اختر الملعب:</h4>
+                <div class="row" id="fieldsContainer">
+                    <div class="text-center p-5"><i class="bi bi-arrow-clockwise spinner-border text-primary"></i> <p class="mt-2">جاري تحميل الملاعب...</p></div>
+                </div>
+                
+                ${field ? `
+                <h4 class="mt-4">📅 اختر الساعة ليوم ${new Date(bookingState.selectedDate).toLocaleDateString()} في ملعب ${field.name}:</h4>
+                <div class="d-flex flex-wrap p-3 border rounded mb-4 bg-white" id="slotsContainer" style="min-height: 120px;">
+                    <div class="text-center w-100 p-3"><i class="bi bi-arrow-clockwise spinner-border text-success"></i> <p class="mt-2">جاري تحميل المواعيد...</p></div>
+                </div>
+                
+                <div class="card p-3 bg-light ${slot ? 'border-success' : 'border-warning'}">
+                    ${slot ? `
+                        <h5 class="card-title">ملخص الحجز</h5>
+                        <p><strong>الملعب:</strong> ${field.name}</p>
+                        <p><strong>الموعد:</strong> ${new Date(bookingState.selectedDate).toLocaleDateString()} من ${formatTimeDisplay(slot.start_time)} إلى ${formatTimeDisplay(slot.end_time)}</p>
+                        <p><strong>التكلفة الإجمالية:</strong> ${field.price * slot.duration_hours} جنيه</p>
+                        <p class="fw-bold ${field.deposit > 0 ? 'text-danger' : 'text-success'}">
+                            العربون المطلوب: ${field.deposit > 0 ? field.deposit + ' جنيه' : 'صفر جنيه'}
+                        </p>
+                        <button class="btn btn-primary w-100 mt-3" id="submitBookingBtn">
+                            ${field.deposit > 0 ? 'انتقل للدفع ودفع العربون' : 'أكد الحجز'}
+                        </button>
+                    ` : `
+                        <h5 class="card-title text-warning">يرجى اختيار موعد</h5>
+                        <p>اختر إحدى الساعات المتاحة أعلاه لتظهر تفاصيل الحجز هنا.</p>
+                    `}
+                </div>
+                ` : ''}
+            `;
+            
+            // ربط مستمعي الأحداث
+            document.getElementById('bookingDate').addEventListener('change', (e) => {
+                bookingState.selectedDate = e.target.value;
+                bookingState.selectedSlot = null; // إعادة تعيين الساعة عند تغيير التاريخ
+                renderBookingView(); 
+            });
+
+            // تحميل الساعات بعد تحميل الواجهة
+            if(field) {
+                loadSlots(); 
+                if(slot) {
+                    document.getElementById('submitBookingBtn').addEventListener('click', handleBookingSubmit);
+                }
+            }
+            
+            loadFields(); // تحميل الملاعب دائماً
+        }
+        
+        // البدء في عرض واجهة الحجز
+        renderBookingView(); 
+        return ``; 
+    },
+    // ... (بقية دوال الواجهات الأخرى: my-bookings, team-requests, profile)
+};
+
+// ... (بقية ملف user.js)
