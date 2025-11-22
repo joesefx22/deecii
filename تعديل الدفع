@@ -1,0 +1,80 @@
+2. 🖥️ تحديث الواجهة الأمامية (payment.html)
+نربط الآن زر الدفع بالـ API الجديد ونتعامل مع حالة العودة من Paymob.
+
+أ. payment.html (منطق الدفع الجديد)
+عدّل الدوال التالية في قسم الـ JavaScript بملف payment.html:
+
+JavaScript
+
+// payment.html (داخل وسم <script> - تعديل الدوال)
+
+// ===================================
+// 💰 معالجة الدفع (Paymob) - التحديث
+// ===================================
+
+/**
+ * 1. بدء عملية الدفع عبر Paymob (بعد الضغط على زر الدفع)
+ */
+async function processPayment(bookingId) {
+    showLoading(true);
+    showAlert('', 'none');
+
+    try {
+        // نستخدم دالة apiRequest المفترضة في الملفات المرفوعة
+        const response = await apiRequest("/api/payment/initiate", 'POST', { bookingId });
+        
+        const { paymentToken, iframeId } = response;
+        
+        if (paymentToken && iframeId) {
+            // يتم توجيه المستخدم إلى صفحة Paymob iFrame للدفع
+            const paymobUrl = `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentToken}`;
+            window.location.href = paymobUrl;
+            
+        } else {
+            throw new Error("لم يتم استقبال مفتاح الدفع الصحيح.");
+        }
+
+    } catch (error) {
+        showLoading(false);
+        console.error('فشل في بدء الدفع:', error);
+        showAlert('فشل في بدء عملية الدفع. يرجى المحاولة لاحقاً.', 'error');
+    }
+}
+
+
+/**
+ * 2. التعامل مع العودة من Paymob (Callback)
+ */
+function handlePaymentCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const status = urlParams.get('status'); 
+    
+    // إذا كانت هناك حالة دفع في الـ URL، نعرض النتيجة
+    if (status === 'success=true' || status === 'success=false') {
+        const isSuccess = status === 'success=true';
+        const statusDiv = document.getElementById('paymentStatus');
+        const bookingDetailsDiv = document.getElementById('bookingDetails');
+        
+        bookingDetailsDiv.style.display = 'none'; 
+        
+        if (isSuccess) {
+            showPaymentStatus('نجاح الدفع 🎉', 'تم تأكيد حجزك ودفع العربون بنجاح.', 'success');
+            statusDiv.innerHTML += `<a href="/profile.html" class="btn btn-success mt-4">انتقل إلى حجوزاتي</a>`;
+        } else {
+            showPaymentStatus('فشل الدفع ❌', 'فشلت عملية دفع العربون. يرجى المحاولة مرة أخرى.', 'danger');
+            statusDiv.innerHTML += `<button class="btn btn-primary mt-4" onclick="handlePaymentCallback()">محاولة الدفع مرة أخرى</button>`;
+        }
+    } else {
+         // إذا لم يكن هناك status، يتم تحميل معلومات الحجز لبدء الدفع
+        loadBookingInfo(); 
+    }
+}
+
+// 🎯 تحديث دالة التهيئة عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (التحقق من المستخدم)
+    
+    // 💡 الاستدعاء الجديد:
+    handlePaymentCallback(); 
+});
+بهذا نكون قد أتممنا التكامل مع Paymob.
