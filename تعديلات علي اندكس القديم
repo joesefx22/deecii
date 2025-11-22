@@ -134,3 +134,44 @@ window.bookStadium = async function(fieldId, bookingDate, startTime, endTime) {
 if (window.appHelpers) {
     window.appHelpers.bookStadium = window.bookStadium;
 }
+
+// new index (1).html (داخل دالة showStadiumPopup)
+
+async function showStadiumPopup(stadiumId) {
+    // ... الكود السابق لجلب تفاصيل الملعب والساعات ...
+    
+    // =====================================
+    // 🆕 جلب وعرض تقييمات الملعب
+    // =====================================
+    const ratingsContainer = document.getElementById('popupRatings');
+    const avgRatingElement = document.getElementById('popupAvgRating');
+    
+    try {
+        const ratingsResponse = await fetch(`/api/fields/${stadiumId}/ratings`);
+        if (!ratingsResponse.ok) throw new Error('فشل جلب التقييمات');
+        
+        const ratings = await ratingsResponse.json();
+        
+        // جلب متوسط التقييم من تفاصيل الملعب التي تم تحميلها مسبقاً
+        // (يفترض أن تفاصيل الملعب تحتوي على average_rating)
+        const avgRating = stadiumDetails.average_rating ? parseFloat(stadiumDetails.average_rating).toFixed(1) : 'جديد';
+        
+        avgRatingElement.innerHTML = `⭐ ${avgRating} <small class="text-muted">(${ratings.length} تقييم)</small>`;
+
+        ratingsContainer.innerHTML = ratings.map(r => `
+            <div class="rating-item mb-2 p-2 border-bottom">
+                <p class="mb-0">
+                    <strong class="text-dark">${r.reviewer_name}:</strong> 
+                    <span class="badge bg-warning">${'⭐'.repeat(r.rating_value)}</span>
+                </p>
+                <small class="text-muted">${r.comment || 'لا يوجد تعليق.'}</small>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        ratingsContainer.innerHTML = '<p class="text-danger small">فشل تحميل التقييمات.</p>';
+        avgRatingElement.innerHTML = '⭐ N/A';
+    }
+
+    // ... الكود السابق لإظهار النافذة ...
+}
