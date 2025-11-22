@@ -1,0 +1,101 @@
+// players.html (داخل وسم <script> الموجود)
+
+// ... (يفترض وجود دالة apiRequest و showLoading و showToast)
+
+/**
+ * جلب وعرض جميع طلبات اللاعبين النشطة
+ */
+async function loadPlayerRequests() {
+    const requestsContainer = document.getElementById('requestsContainer');
+    // يمكن جلب المنطقة المفضلة للمستخدم من localStorage أو تركها فارغة للكل
+    const userArea = localStorage.getItem('userArea') || ''; 
+
+    try {
+        window.showLoading(true);
+        // يمكنك إرسال معرّف المستخدم للحصول على حالة المشاركة في الـ Backend
+        const response = await apiRequest(`/api/player-requests?area=${userArea}`, 'GET');
+        window.showLoading(false);
+        
+        requestsContainer.innerHTML = '';
+        
+        if (response.length === 0) {
+            requestsContainer.innerHTML = '<p class="text-center text-muted mt-5">لا توجد طلبات لاعبين نشطة حالياً في منطقتك.</p>';
+            return;
+        }
+
+        const currentUserId = window.appHelpers.getUserId(); // افترض أن لديك دالة تجلب المعرف
+
+        response.forEach(request => {
+            // يفترض أن الـ API يمكنه تحديد المشاركة أو حسابها في الـ Front
+            const needed = parseInt(request.players_needed) - parseInt(request.current_participants);
+            
+            // تحقق بسيط هنا (تحتاج الـ Backend لتحديد المشاركة بشكل دقيق)
+            // مؤقتاً، سنفترض أن اللاعب غير مشارك
+            const isParticipant = false; // يجب أن يتم تحديث هذا من الـ Backend
+
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4 mb-4';
+            card.innerHTML = `
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">${request.field_name}</h5>
+                        <p class="card-text"><i class="bi bi-geo-alt-fill"></i> ${request.location}</p>
+                        <hr>
+                        <p class="mb-1"><strong><i class="bi bi-calendar-event"></i> التاريخ:</strong> ${request.booking_date}</p>
+                        <p class="mb-1"><strong><i class="bi bi-clock"></i> التوقيت:</strong> ${request.start_time.substring(0, 5)} - ${request.end_time.substring(0, 5)}</p>
+                        <p class="mb-3"><strong><i class="bi bi-person-plus-fill"></i> مطلوب:</strong> <span class="badge ${needed > 0 ? 'bg-danger' : 'bg-secondary'}">${needed} لاعب</span></p>
+                        
+                        <p class="small text-muted">${request.notes || 'لا توجد ملاحظات إضافية.'}</p>
+                        
+                        <div class="mt-3">
+                            ${needed > 0 ? 
+                                `<button 
+                                    class="btn btn-sm ${isParticipant ? 'btn-warning' : 'btn-success'}" 
+                                    onclick="toggleJoinRequest('${request.request_id}', ${isParticipant})"
+                                >
+                                    <i class="bi bi-person-${isParticipant ? 'dash' : 'check'}"></i> 
+                                    ${isParticipant ? 'مغادرة الطلب' : 'انضمام'}
+                                </button>`
+                                : 
+                                `<span class="badge bg-secondary p-2">مكتمل العدد</span>`
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light border-top-0">
+                        <small class="text-muted">صاحب الحجز: ${request.booker_name}</small>
+                    </div>
+                </div>
+            `;
+            requestsContainer.appendChild(card);
+        });
+
+    } catch (error) {
+        window.showLoading(false);
+        requestsContainer.innerHTML = `<div class="alert alert-danger">فشل تحميل طلبات اللاعبين: ${error.message}</div>`;
+    }
+}
+
+/**
+ * الانضمام أو المغادرة من طلب لاعبين
+ */
+async function toggleJoinRequest(requestId, isParticipant) {
+    const action = isParticipant ? 'leave' : 'join';
+    const endpoint = `/api/player-requests/${requestId}/${action}`;
+    
+    try {
+        window.showLoading(true);
+        await apiRequest(endpoint, 'POST');
+
+        window.showToast(`تمت معالجة الطلب بنجاح.`, 'success');
+        
+        // إعادة تحميل القائمة لتحديث الحالة
+        loadPlayerRequests(); 
+        
+    } catch (error) {
+        window.showLoading(false);
+        window.showToast(`فشل في معالجة طلبك: ${error.message}`, 'error');
+    }
+}
+
+// استدعاء دالة التحميل عند تهيئة الصفحة (يجب أن تكون موجودة في نهاية وسم السكربت)
+document.addEventListener('DOMContentLoaded', loadPlayerRequests);
