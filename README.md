@@ -1,2 +1,0 @@
-# deecii
-activity
